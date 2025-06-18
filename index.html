@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Truth Contacts</title>
+  <style>
+    body { font-family:sans-serif; margin:0; padding:1rem; max-width:600px; }
+    form, ul { margin:1rem 0; }
+    input, button { width:100%; padding:.5rem; margin:.25rem 0; box-sizing:border-box; }
+    ul { list-style:none; padding:0; }
+    li { margin:.5rem 0; display:flex; justify-content:space-between; align-items:center; }
+    li button { flex-shrink:0; margin-left:1rem; }
+  </style>
+</head>
+<body>
+  <h1>Truth Contacts</h1>
+
+  <form id="form">
+    <input id="name" placeholder="Name" required />
+    <input id="phone" placeholder="Phone (digits only)" required />
+    <input id="interval" type="number" placeholder="Interval (days)" value="7" min="1" required />
+    <button type="submit">Add Contact</button>
+  </form>
+
+  <ul id="list"></ul>
+
+  <script>
+    const load = () => JSON.parse(localStorage.getItem('tc')||'[]');
+    const save = (data) => localStorage.setItem('tc', JSON.stringify(data));
+
+    const listEl = document.getElementById('list');
+    function render() {
+      const now = Date.now();
+      listEl.innerHTML = '';
+      load().forEach((c, i) => {
+        const li = document.createElement('li');
+        const due = Math.floor((now - c.last)/86400000) >= c.interval;
+        li.innerHTML = `
+          <span>
+            <strong>${c.name}</strong> (${c.phone})<br>
+            next in ${c.interval} day(s)<br>
+            last: ${new Date(c.last).toLocaleDateString()}
+          </span>
+        `;
+        // SMS button
+        const btnSMS = document.createElement('button');
+        btnSMS.textContent = '✉️ SMS';
+        btnSMS.onclick = () => {
+          const body = encodeURIComponent(`Hi ${c.name}, would you like to join a Bible study this week?`);
+          window.location.href = `sms:${c.phone}?body=${body}`;
+        };
+        li.append(btnSMS);
+
+        // (optional) Remove button
+        const btnX = document.createElement('button');
+        btnX.textContent = '❌';
+        btnX.onclick = () => {
+          const arr = load();
+          arr.splice(i,1);
+          save(arr);
+          render();
+        };
+        li.append(btnX);
+
+        listEl.append(li);
+
+        // Notification if due
+        if (due && Notification.permission==='granted') {
+          new Notification(`Reach out to ${c.name}`);
+        }
+      });
+    }
+
+    document.getElementById('form').onsubmit = e => {
+      e.preventDefault();
+      const name = e.target.name.value.trim();
+      const phone = e.target.phone.value.trim();
+      const interval = parseInt(e.target.interval.value,10) || 7;
+      const arr = load();
+      arr.push({ name, phone, interval, last: Date.now() });
+      save(arr);
+      render();
+      e.target.reset();
+    };
+
+    if ('Notification' in window && Notification.permission==='default') {
+      Notification.requestPermission();
+    }
+    render();
+  </script>
+</body>
+</html>
